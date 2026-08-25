@@ -16,6 +16,8 @@ FEEDS = [
     "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
     "https://techcrunch.com/category/artificial-intelligence/feed/",
     "https://www.infobae.com/arc/outboundfeeds/rss/category/tecno/",
+    "https://feeds.weblogssl.com/xataka2",
+    "https://feeds.weblogssl.com/genbeta",
 ]
 
 HOURS = int(sys.argv[1]) if len(sys.argv[1:]) and sys.argv[1].isdigit() else 24
