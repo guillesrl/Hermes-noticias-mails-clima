@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Extrae titulares recientes de los feeds del briefing, con fecha.
+"""
+Extrae titulares recientes de los feeds del briefing, con fecha.
 Uso: fetch-news.py [horas]   (por defecto 24)
 Soporta RSS (item/pubDate) y Atom (entry/updated|published), con y sin CDATA.
 Imprime solo entradas dentro de la ventana, ordenadas de mas nueva a mas vieja.
@@ -25,10 +26,10 @@ now = datetime.now(timezone.utc)
 
 
 def clean(s):
-    s = re.sub(r"<!\[CDATA\[|\]\]>", "", s)
+    s = re.sub(r"<!\[CDATA\[|\\]\\]>", "", s)
     s = re.sub(r"<[^>]+>", " ", s)
     s = re.sub(r"&#(\d+);", lambda m: chr(int(m.group(1))), s)
-    for a, b in (("&amp;", "&"), ("&quot;", '"'), ("&#39;", "'"), ("&lt;", "<"), ("&gt;", ">")):
+    for a, b in (("&", "&"), (""", '"'), ("'", "'"), ("<", "<"), (">", ">")):
         s = s.replace(a, b)
     return re.sub(r"\s+", " ", s).strip()
 
@@ -63,9 +64,59 @@ def fetch(url):
         return ""
 
 
+def clean_text(text):
+    # Eliminar entidades HTML
+    text = re.sub(r'&nbsp;', ' ', text)
+    text = re.sub(r'&[a-zA-Z]+;', ' ', text)
+    text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
+    # Normalizar espacios
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
+
+def is_valid_category(title, summary):
+    title_lower = title.lower()
+    summary_lower = summary.lower()
+    
+    # CATEGORIAS AUTORIZADAS (deben incluir al menos una)
+    authorized_patterns = [
+        # (a) litigios/regulacion de IA
+        r'litigio|demanda|copyright|propiedad intelectual|regulacion|ley|tribunal|corte|sony|warner|anthropic|openai|google|microsoft|apple|meta|amazon',
+        # (b) infraestructura/hardware de IA
+        r'nvidia|gpu|chip|procesador|centro de datos|data center|infraestructura|hardware|servidor|almamacenamiento',
+        # (c) lanzamientos o nuevas funciones de producto
+        r'lanzamiento|nueva funcion|actualizacion|update|release|gemini|sheets canvas|copilot|llm|modelo|ia|inteligencia artificial',
+        # (d) ciberseguridad
+        r'ciberseguridad|ciber ataque|hack|virus|malware|bot|red de bots|android pulse|x|twitter|desmantelado|seguridad',
+        # (e) movimientos de empresas o investigacion de la industria tech
+        r'adquisicion|fusion|inversion|venture capital|financiacion|resultado|ganancias|beneficios|ceo|fundador|empresa|compañia|startup'
+    ]
+    
+    # DESCARTAR explícitamente
+    forbidden_patterns = [
+        r'vida personal|biografia|esposa|marido|hijo|familia|casado|soltero',
+        r'consejo de inversion|finanzas personales|acciones|bolsa|trading|criptomoneda|bitcoin|ethereum',
+        r'tips de consumo|como hacer|tutorial|guia|recomendacion de producto',
+        r'videojuego|entretenimiento|gta 6|youtube|netflix|spotify|tiktok|instagram',
+        r'curiosidad|dato curioso|sabias que|que sabias'
+    ]
+    
+    # Verificar forbidden primero
+    for pattern in forbidden_patterns:
+        if re.search(pattern, title_lower) or re.search(pattern, summary_lower):
+            return False
+    
+    # Verificar authorized (al menos uno debe coincidir)
+    for pattern in authorized_patterns:
+        if re.search(pattern, title_lower) or re.search(pattern, summary_lower):
+            return True
+    
+    return False
+
+
 for url in FEEDS:
     xml = fetch(url)
-    blocks = re.findall(r"<item[ >].*?</item>|<entry[ >].*?</entry>", xml, re.S | re.I)
+    blocks = re.findall(r'<item[ >].*?</item>|<entry[ >].*?</entry>', xml, re.S | re.I)
     rows = []
     for b in blocks:
         d = parse_date(clean(field(b, "pubDate", "updated", "published", "dc:date")))
